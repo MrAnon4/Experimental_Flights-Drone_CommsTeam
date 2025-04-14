@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Telemetry</title>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const telemetryDiv = document.getElementById("telemetry");
+            const ws = new WebSocket("wss://" + window.location.host + "/ws/telemetry");
+
+            ws.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                telemetryDiv.innerHTML = `
+                    <p><strong>Latitude:</strong> ${data.lat || "N/A"}</p>
+                    <p><strong>Longitude:</strong> ${data.lon || "N/A"}</p>
+                    <p><strong>Altitude:</strong> ${data.alt || "N/A"} m</p>
+                    <p><strong>Roll:</strong> ${data.roll || "N/A"}</p>
+                    <p><strong>Pitch:</strong> ${data.pitch || "N/A"}</p>
+                    <p><strong>Yaw:</strong> ${data.yaw || "N/A"}</p>
+                    <p><strong>Battery:</strong> ${data.battery !== undefined ? data.battery + "%" : "N/A"}</p>
+                `;
+            };
+
+            ws.onerror = function (error) {
+                telemetryDiv.innerHTML = "<p style='color:red;'>WebSocket error</p>";
+            };
+
+            ws.onclose = function () {
+                telemetryDiv.innerHTML = "<p style='color:red;'>WebSocket disconnected</p>";
+            };
+
+            async function fetchTelemetry() {
+                try {
+                    const response = await fetch("/api/telemetry");
+                    const data = await response.json();
+                    console.log("Fetched telemetry:", data);
+                } catch (error) {
+                    console.error("Error fetching telemetry:", error);
+                }
+            }
+
+            fetchTelemetry();
+        });
+    </script>
+</head>
+<body>
+    <h1>Drone Telemetry</h1>
+    <div id="telemetry">
+        <p>Waiting for data...</p>
+    </div>
+</body>
+</html>
