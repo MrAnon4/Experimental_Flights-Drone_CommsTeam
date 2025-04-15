@@ -28,7 +28,8 @@ else
         selected="${profile_array[$((index-1))]}"
         if [ -n "$selected" ]; then
             echo "Allowing UFW profile: $selected"
-            sudo ufw allow "$selected"
+            trim="$(echo "$selected" | xargs)"
+            sudo ufw allow "$trim"
         fi
     done
 fi
