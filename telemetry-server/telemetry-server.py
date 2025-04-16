@@ -6,15 +6,16 @@ from pymavlink import mavutil
 import sys
 from fastapi.responses import FileResponse
 import uvicorn
+import math
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # MAVLink connection settings
-MAVLINK_CONNECTION = "udp:127.0.0.1:14550"
+MAVLINK_CONNECTION = "udp:127.0.0.1:14557"
 try:
     logging.info(f"Connecting to MAVLink: {MAVLINK_CONNECTION}")
-    mav_connection = mavutil.mavlink_connection(MAVLINK_CONNECTION, baud=57600)
+    mav_connection = mavutil.mavlink_connection(MAVLINK_CONNECTION, baud=921600)
     logging.info("MAVLink listener started on UDP:14550")
 except Exception as e:
     logging.error(f"Failed to start MAVLink connection: {e}")
@@ -73,11 +74,16 @@ async def read_mavlink():
     while True:
         try:
             msg = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: mav_connection.recv_match(blocking=False)
-            )
+            None,
+            lambda: mav_connection.recv_match(blocking=True, timeout=0.05)
+        )
+
             
             if msg:
+                # if msg.get_type() == "ATTITUDE":
+                #     print(math.degrees(msg.yaw))
+                # else:
+                #    print(f"not attitude, was: {msg.get_type()}")
                 if msg.get_type() == "GLOBAL_POSITION_INT":
                     telemetry_data.update({
                         "lat": msg.lat / 1e7,
@@ -85,10 +91,11 @@ async def read_mavlink():
                         "alt": msg.alt / 1000.0
                     })
                 elif msg.get_type() == "ATTITUDE":
+                    print(msg)
                     telemetry_data.update({
-                        "roll": msg.roll,
-                        "pitch": msg.pitch,
-                        "yaw": msg.yaw
+                        "roll": math.degrees(msg.roll),
+                        "pitch": math.degrees(msg.pitch),
+                        "yaw": math.degrees(msg.yaw)
                     })
                 elif msg.get_type() == "BATTERY_STATUS":
                     telemetry_data["battery"] = msg.battery_remaining
@@ -98,7 +105,7 @@ async def read_mavlink():
         except Exception as e:
             logging.error(f"Error reading MAVLink data: {e}")
         
-        await asyncio.sleep(0.1)
+        # await asyncio.sleep(0.1)
 
 async def run_server():
     config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
