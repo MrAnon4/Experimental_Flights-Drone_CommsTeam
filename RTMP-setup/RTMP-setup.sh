@@ -16,19 +16,23 @@ fi
 
 # === Auto-detect IP addresses ===
 LOCAL_IP=$(hostname -I | awk '{print $1}')
-
 echo "Detected LOCAL IP: $LOCAL_IP"
 
 # === Install RTMP Module ===
-echo -e "\n=== Installing libnginx-mod-rtmp ==="
-sudo apt update && sudo apt install -y libnginx-mod-rtmp
+if ! dpkg -l | grep -q libnginx-mod-rtmp; then
+    echo -e "\n=== Installing libnginx-mod-rtmp ==="
+    sudo apt update && sudo apt install -y libnginx-mod-rtmp
+else
+    echo -e "\n=== libnginx-mod-rtmp is already installed ==="
+fi
 
 # === Configure Nginx for RTMP ===
-echo "Adding RTMP block to nginx.conf..."
+if ! grep -q "rtmp {" /etc/nginx/nginx.conf; then
+    echo "Adding RTMP block to nginx.conf..."
 
-read -p "Allow publishing from all IPs? (y/n): " ALLOW_ALL_IPS
+    read -p "Allow publishing from all IPs? (y/n): " ALLOW_ALL_IPS
 
-sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
+    sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
 
 rtmp {
     server {
@@ -36,27 +40,27 @@ rtmp {
         chunk_size 4096;
 EOF
 
-if [[ $ALLOW_ALL_IPS =~ ^[Yy]$ ]]; then
-    sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
+    if [[ $ALLOW_ALL_IPS =~ ^[Yy]$ ]]; then
+        sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
         allow publish all;
 EOF
-else
-    sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
+    else
+        sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
         allow publish 127.0.0.1;
         deny publish all;
 EOF
-fi
+    fi
 
-sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
+    sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
 
         application live {
             live on;
             record off;
 EOF
 
-read -p "Add HLS/DASH support? (y/n): " ADD_HLS_DASH
-if [[ $ADD_HLS_DASH =~ ^[Yy]$ ]]; then
-    sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
+    read -p "Add HLS/DASH support? (y/n): " ADD_HLS_DASH
+    if [[ $ADD_HLS_DASH =~ ^[Yy]$ ]]; then
+        sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
             hls on;
             hls_path /var/www/html/stream/hls;
             hls_fragment 3;
@@ -65,25 +69,36 @@ if [[ $ADD_HLS_DASH =~ ^[Yy]$ ]]; then
             dash on;
             dash_path /var/www/html/stream/dash;
 EOF
-fi
+    fi
 
-sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
+    sudo tee -a /etc/nginx/nginx.conf > /dev/null <<EOF
         }
     }
 }
 EOF
+else
+    echo -e "\n=== RTMP configuration already exists in nginx.conf ==="
+    # Detect existing HLS/DASH settings
+    if grep -q "hls on;" /etc/nginx/nginx.conf; then
+        ADD_HLS_DASH="y"
+        echo "Detected existing HLS/DASH configuration"
+    else
+        ADD_HLS_DASH="n"
+    fi
+fi
 
 # === Firewall Rules ===
 echo -e "\n=== Configuring Firewall ==="
 sudo ufw allow 1935/tcp
-[[ $ADD_HLS_DASH =~ ^[Yy]$ ]] && sudo ufw allow 8088/tcp
+
+if [[ $ADD_HLS_DASH =~ ^[Yy]$ ]] && ! sudo ufw status | grep -q "8088/tcp"; then
+    sudo ufw allow 8088/tcp
+fi
 
 # === Web Interface Setup ===
 echo -e "\n=== Setting Up Web Interface ==="
-sudo mkdir -p /var/www/html/rtmp
-sudo cp /usr/share/doc/libnginx-mod-rtmp/examples/stat.xsl /var/www/html/rtmp/
-
-sudo tee /etc/nginx/sites-available/rtmp > /dev/null <<EOF
+if [ ! -f /etc/nginx/sites-available/rtmp ]; then
+    sudo tee /etc/nginx/sites-available/rtmp > /dev/null <<EOF
 server {
     listen 8080;
     server_name localhost;
@@ -100,9 +115,14 @@ server {
     }
 EOF
 
-if [[ $ADD_HLS_DASH =~ ^[Yy]$ ]]; then
-    sudo mkdir -p /var/www/html/stream
-    sudo tee -a /etc/nginx/sites-available/rtmp > /dev/null <<EOF
+    sudo mkdir -p /var/www/html/rtmp
+    if [ ! -f /var/www/html/rtmp/stat.xsl ]; then
+        sudo cp /usr/share/doc/libnginx-mod-rtmp/examples/stat.xsl /var/www/html/rtmp/
+    fi
+
+    if [[ $ADD_HLS_DASH =~ ^[Yy]$ ]]; then
+        sudo mkdir -p /var/www/html/stream
+        sudo tee -a /etc/nginx/sites-available/rtmp > /dev/null <<EOF
 }
 
 server {
@@ -117,13 +137,21 @@ types {
     application/dash+xml mpd;
 }
 EOF
+    else
+        echo "}" | sudo tee -a /etc/nginx/sites-available/rtmp > /dev/null
+    fi
 else
-    echo "}" | sudo tee -a /etc/nginx/sites-available/rtmp > /dev/null
+    echo "Web interface configuration already exists at /etc/nginx/sites-available/rtmp"
 fi
 
 # === Activate Configuration ===
 echo -e "\n=== Activating Nginx Config ==="
-sudo ln -sf /etc/nginx/sites-available/rtmp /etc/nginx/sites-enabled/
+if [ ! -L /etc/nginx/sites-enabled/rtmp ]; then
+    sudo ln -sf /etc/nginx/sites-available/rtmp /etc/nginx/sites-enabled/
+else
+    echo "Configuration link already exists"
+fi
+
 sudo systemctl reload nginx.service
 
 # === Summary ===

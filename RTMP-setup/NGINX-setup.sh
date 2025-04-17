@@ -5,9 +5,16 @@
 echo "=== Nginx Installation and Configuration ==="
 
 # Step 1: Install Nginx
-echo -e "\n[1/4] Installing Nginx..."
-sudo apt update
-sudo apt install -y nginx
+echo -e "\n[1/4] Checking Nginx installation..."
+if ! command -v nginx &> /dev/null; then
+    echo "Nginx not found. Installing..."
+    sudo apt update
+    sudo apt install -y nginx
+else
+    echo "Nginx is already installed. Skipping installation."
+    nginx_version=$(nginx -v 2>&1 | cut -d '/' -f 2)
+    echo "Installed version: $nginx_version"
+fi
 
 # Step 2: Configure Firewall with profile selection
 echo -e "\n[2/4] Configuring UFW Firewall..."
