@@ -7,6 +7,8 @@ import sys
 from fastapi.responses import FileResponse
 import uvicorn
 import math
+import random
+from fastapi.middleware.cors import CORSMiddleware
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -23,6 +25,14 @@ except Exception as e:
 
 telemetry_data = {}
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8081"],  # Expo web dev server
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ConnectionManager:
     def __init__(self):
@@ -73,34 +83,45 @@ async def read_mavlink():
     global telemetry_data
     while True:
         try:
-            msg = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: mav_connection.recv_match(blocking=True, timeout=0.05)
-        )
+        #     msg = await asyncio.get_event_loop().run_in_executor(
+        #     None,
+        #     lambda: mav_connection.recv_match(blocking=True, timeout=0.05)
+        # )
 
             
-            if msg:
-                # if msg.get_type() == "ATTITUDE":
-                #     print(math.degrees(msg.yaw))
-                # else:
-                #    print(f"not attitude, was: {msg.get_type()}")
-                if msg.get_type() == "GLOBAL_POSITION_INT":
-                    telemetry_data.update({
-                        "lat": msg.lat / 1e7,
-                        "lon": msg.lon / 1e7,
-                        "alt": msg.alt / 1000.0
-                    })
-                elif msg.get_type() == "ATTITUDE":
-                    print(msg)
-                    telemetry_data.update({
-                        "roll": math.degrees(msg.roll),
-                        "pitch": math.degrees(msg.pitch),
-                        "yaw": math.degrees(msg.yaw)
-                    })
-                elif msg.get_type() == "BATTERY_STATUS":
-                    telemetry_data["battery"] = msg.battery_remaining
+        #     if msg:
+        #         # if msg.get_type() == "ATTITUDE":
+        #         #     print(math.degrees(msg.yaw))
+        #         # else:
+        #         #    print(f"not attitude, was: {msg.get_type()}")
+        #         if msg.get_type() == "GLOBAL_POSITION_INT":
+        #             telemetry_data.update({
+        #                 "lat": msg.lat / 1e7,
+        #                 "lon": msg.lon / 1e7,
+        #                 "alt": msg.alt / 1000.0
+        #             })
+        #         elif msg.get_type() == "ATTITUDE":
+        #             print(msg)
+        #             telemetry_data.update({
+        #                 "roll": math.degrees(msg.roll),
+        #                 "pitch": math.degrees(msg.pitch),
+        #                 "yaw": math.degrees(msg.yaw)
+        #             })
+        #         elif msg.get_type() == "BATTERY_STATUS":
+        #             telemetry_data["battery"] = msg.battery_remaining
+
+                telemetry_data = {
+                "lat": 37.7749 + random.uniform(-0.001, 0.001),
+                "lon": -122.4194 + random.uniform(-0.001, 0.001),
+                "alt": 10 + random.uniform(-2, 2),
+                "roll": random.uniform(-5, 5),
+                "pitch": random.uniform(-5, 5),
+                "yaw": random.uniform(0, 360),
+                "battery": random.randint(50, 100)
+                }
 
                 await manager.broadcast(telemetry_data)
+                await asyncio.sleep(0.5)
         
         except Exception as e:
             logging.error(f"Error reading MAVLink data: {e}")
