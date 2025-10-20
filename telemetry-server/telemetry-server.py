@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 # MAVLink connection settings
 # Connect to MAVProxy's GCS port for two-way communication
-MAVLINK_CONNECTION = "udpout:127.0.0.1:14550:source_system=255"
+MAVLINK_CONNECTION = "udpin:0.0.0.0:14550"
 try:
     logging.info(f"Connecting to MAVLink: {MAVLINK_CONNECTION}")
     mav_connection = mavutil.mavlink_connection(MAVLINK_CONNECTION)
