@@ -1,0 +1,66 @@
+# Experimental Flights Drone Communications System (Telemetry Server)
+
+## Overview
+This package contains the telemetry server responsible for bridging data between the drone’s Pixhawk flight controller and the Experimental Flights mobile app through the Google Cloud telemetry pipeline.
+
+## System Architecture
+Pixhawk → Raspberry Pi → FastAPI Telemetry Server → Google Pub/Sub → Cloud Function → Firestore → Mobile App
+
+The Raspberry Pi runs this FastAPI-based telemetry server which connects to the Pixhawk via MAVLink, aggregates data, broadcasts to WebSocket clients, and publishes telemetry packets to a Google Cloud Pub/Sub topic.
+
+## Key Components
+- **telemetry-server.py** — Main FastAPI app integrating MAVLink I/O, WebSockets, and API endpoints.
+- **data_handler.py** — Manages telemetry parsing, caching, history, and rate-limited broadcasting.
+- **gcp_publisher.py** — Publishes structured telemetry data to Google Cloud Pub/Sub.
+- **requirements.txt** — Python dependencies.
+- **README.txt** — Documentation and developer guide.
+
+## Installation
+1. Copy this folder to the Raspberry Pi.
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Set Google Cloud credentials:
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS="/home/pi/PubSubKey.json"
+   export GCP_PROJECT_ID="your-gcp-project-id"
+   export GCP_TOPIC_ID="drone-telemetry"
+   ```
+4. Run the server:
+   ```bash
+   python3 telemetry-server.py
+   ```
+
+## API Routes
+| Endpoint | Method | Description |
+|-----------|---------|-------------|
+| `/` | GET | Serve index.html |
+| `/api/telemetry` | GET | Returns latest telemetry snapshot |
+| `/api/telemetry/history` | GET | Returns last N telemetry entries |
+| `/api/arm` | POST | Sends ARM command |
+| `/api/disarm` | POST | Sends DISARM command |
+| `/api/mode/{mode}` | POST | Sets flight mode |
+| `/api/takeoff/{altitude}` | POST | Arms and takes off to target altitude |
+| `/ws/telemetry` | WebSocket | Streams real-time telemetry updates |
+
+## Integration with GCP
+Telemetry updates are published to the configured Pub/Sub topic. The Google Cloud Function listening to that topic updates Firestore automatically, making telemetry data available to the mobile app.
+
+## Change Log (relative to previous version)
+### Added
+- `data_handler.py` for modular telemetry aggregation and event management.
+- `gcp_publisher.py` for Google Cloud Pub/Sub publishing.
+- Pub/Sub publishing logic in data handler.
+- History buffer and rate limiting for telemetry updates.
+
+### Updated
+- `telemetry-server.py` refactored to use DataHandler instead of direct global telemetry dict.
+- WebSocket handling centralized through the data handler.
+- Requirements updated with Google Cloud dependencies.
+
+### Removed
+- Legacy ConnectionManager class and global telemetry dictionary usage.
+
+## Author
+Experimental Flights Comms Team — Georgia Tech VIP Program

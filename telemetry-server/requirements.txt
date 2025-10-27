@@ -2,3 +2,4 @@ fastapi
 uvicorn
 pymavlink
 websockets
+google-cloud-pubsub
